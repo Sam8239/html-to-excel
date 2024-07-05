@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export HTML Table to XLSX</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+</head>
+
+<body>
+
+    <button onclick="exportTableToExcel(getHtmlContent())">Export to Excel</button>
+
+    <script>
+        function getHtmlContent() {
+            return `
+                <div style="text-align: center; font-family: 'Times New Roman', serif;">
+                    <h2>Billing Plan</h2>
+                    <h3>Pre research example: Pre research Arm</h3>
+                    <div style="margin: 10px 0;">
+                        <span style="display: inline-block; margin-right: 10px;">
+                            <span style="width: 20px; height: 20px; background-color: #FFE4E1; display: inline-block; vertical-align: middle; margin-right: 5px;"></span>Patient/Insurance
+                        </span>
+                        <span style="display: inline-block; margin-right: 10px;">
+                            <span style="width: 20px; height: 20px; background-color: #98FB98; display: inline-block; vertical-align: middle; margin-right: 5px;"></span>No Charge Activity
+                        </span>
+                        <span style="display: inline-block; margin-right: 10px;">
+                            <span style="width: 20px; height: 20px; background-color: #FFDAB9; display: inline-block; vertical-align: middle; margin-right: 5px;"></span>Study Paid (via Budget)
+                        </span>
+                        <span style="display: inline-block; margin-right: 10px;">
+                            <span style="width: 20px; height: 20px; background-color: #87CEFA; display: inline-block; vertical-align: middle; margin-right: 5px;"></span>Provided Free (Drug/Device)
+                        </span>
+                        <span style="display: inline-block; margin-right: 10px;">
+                            <span style="width: 20px; height: 20px; background-color: #E6E6FA; display: inline-block; vertical-align: middle; margin-right: 5px;"></span>Unknown
+                        </span>
+                    </div>
+                </div>
+                <table border="1" style="border-collapse: collapse; width: 100%; font-family: 'Times New Roman', serif;">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th style="min-width: 100px;">Billing Code</th>
+                            <th style="min-width: 120px;">Visit 1 - Pre Collecting Data</th>
+                            <th style="min-width: 120px;">Visit 2 - Collecting Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Create research plan</td>
+                            <td style="text-align: center;">RP1</td>
+                            <td style="text-align: center; background-color: #E6E6FA;"></td>
+                            <td style="text-align: center; background-color: #FFFFFF;"></td>
+                        </tr>
+                        <tr>
+                            <td>Confirm to candidate</td>
+                            <td style="text-align: center;">CD1</td>
+                            <td style="text-align: center; background-color: #FFFFFF;"></td>
+                            <td style="text-align: center; background-color: #FFFFFF;"></td>
+                        </tr>
+                        <tr>
+                            <td>Onfield data collection</td>
+                            <td style="text-align: center;">FD01</td>
+                            <td style="text-align: center; background-color: #FFFFFF;"></td>
+                            <td style="text-align: center; background-color: #FFFFFF;"></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Visit Cost</strong></td>
+                            <td style="text-align: center;"><strong>-</strong></td>
+                            <td style="text-align: center;"><strong>$0.00</strong></td>
+                            <td style="text-align: center;"><strong>$0.00</strong></td>
+                        </tr>
+                        <tr>
+                            <td colspan="3" style="text-align: right;"><strong>Total Cost:</strong></td>
+                            <td style="text-align: center;"><strong>$0.00</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function exportTableToExcel(htmlContent) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlContent, 'text/html');
+            const div = doc.querySelector('div');
+            const table = doc.querySelector('table');
+            const numColumns = table.rows[0].cells.length;
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Sheet1');
+            const columnWidths = [];
+
+            // Add div content to worksheet
+            const h2Text = div.querySelector('h2').innerText;
+            const h3Text = div.querySelector('h3').innerText;
+            const spans = div.querySelectorAll('div span');
+
+            // Concatenate h2, h3, and span texts with colored squares
+            let richText = [
+                { text: h2Text + "\r\n", font: { bold: true, size: 14 } },
+                { text: h3Text + "\r\n", font: { bold: true, size: 14 } }
+            ];
+
+            spans.forEach((span) => {
+                const colorSpan = span.querySelector('span');
+                if (span.innerText && colorSpan) {
+                    const bgColor = colorSpan.style.backgroundColor;
+                    const squareObj = getColoredSquare(bgColor);
+                    richText.push({ text: squareObj.square + ' ', font: { color: { argb: squareObj.color }, size: 20 } });
+                    richText.push({ text: span.innerText.trim() + '    ', font: { color: { argb: "FF000000" } } });
+                }
+            });
+
+            let rowIndex = 1;
+            const cell = worksheet.getRow(rowIndex).getCell(1);
+            cell.value = { richText: richText };
+            worksheet.mergeCells(rowIndex, 1, rowIndex, numColumns);
+            cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+
+            // Estimate and set row height for the info row
+            const lineHeight = 30;
+            const numLines = richText.reduce((acc, item) => acc + (item.text.match(/\r\n/g) || []).length, 0) + 1;
+            worksheet.getRow(rowIndex).height = lineHeight * numLines;
+
+            // Add table rows to worksheet
+            for (let rowIndex = 0; rowIndex < table.rows.length; rowIndex++) {
+                const row = table.rows[rowIndex];
+                let worksheetRow = worksheet.getRow(rowIndex + 3);
+                let colIndex = 1;
+
+                for (let cellIndex = 0; cellIndex < row.cells.length; cellIndex++) {
+                    const cell = row.cells[cellIndex];
+                    const cellValue = cell.innerText.trim();
+                    const worksheetCell = worksheetRow.getCell(colIndex);
+
+                    worksheetCell.value = isNumeric(cellValue) ? Number(cellValue) : cellValue;
+
+                    // Calculate the width of the cell content
+                    const cellWidth = Math.max(cellValue.length + 2, columnWidths[colIndex - 1] || 0);
+                    columnWidths[colIndex - 1] = cellWidth;
+
+                    // Apply styles from HTML to worksheet cells
+                    const inlineStyle = cell.style;
+                    const bgColor = inlineStyle.backgroundColor;
+                    const textColor = inlineStyle.color;
+                    const fontFamily = inlineStyle.fontFamily;
+                    const fontWeight = inlineStyle.fontWeight;
+                    const fontStyle = inlineStyle.fontStyle;
+                    const textDecoration = inlineStyle.textDecoration;
+                    const textAlign = inlineStyle.textAlign;
+                    const verticalAlign = inlineStyle.verticalAlign;
+
+                    if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent' && bgColor !== 'rgb(255, 255, 255)') {
+                        worksheetCell.fill = {
+                            type: 'pattern',
+                            pattern: 'solid',
+                            fgColor: { argb: rgbToHex(bgColor) }
+                        };
+                    }
+                    if (textColor && textColor !== 'rgba(0, 0, 0, 0)' && textColor !== 'transparent') {
+                        worksheetCell.font = worksheetCell.font || {};
+                        worksheetCell.font.color = { argb: rgbToHex(textColor) };
+                    }
+                    if (fontFamily) {
+                        worksheetCell.font = worksheetCell.font || {};
+                        worksheetCell.font.name = fontFamily;
+                    }
+
+                    // Set font size to 12px
+                    worksheetCell.font = worksheetCell.font || {};
+                    worksheetCell.font.size = 12;
+
+                    if (fontWeight && fontWeight !== 'normal') {
+                        worksheetCell.font = worksheetCell.font || {};
+                        worksheetCell.font.bold = fontWeight === 'bold' || parseInt(fontWeight) >= 700;
+                    }
+                    if (fontStyle && fontStyle !== 'normal') {
+                        worksheetCell.font = worksheetCell.font || {};
+                        worksheetCell.font.italic = fontStyle === 'italic';
+                    }
+                    if (textDecoration && textDecoration !== 'none') {
+                        worksheetCell.font = worksheetCell.font || {};
+                        worksheetCell.font.underline = textDecoration.includes('underline');
+                        worksheetCell.font.strike = textDecoration.includes('line-through');
+                    }
+
+                    // Apply text alignment
+                    worksheetCell.alignment = worksheetCell.alignment || {};
+                    worksheetCell.alignment.horizontal = convertTextAlign(textAlign);
+                    worksheetCell.alignment.vertical = convertVerticalAlign(verticalAlign);
+
+                    // Check for strong tags and apply bold
+                    if (cell.querySelector('strong')) {
+                        worksheetCell.font = worksheetCell.font || {};
+                        worksheetCell.font.bold = true;
+                    }
+
+                    // Handle colspan
+                    const colspan = cell.colSpan;
+                    if (colspan > 1) {
+                        worksheet.mergeCells(rowIndex + 3, colIndex, rowIndex + 3, colIndex + colspan - 1);
+                        colIndex += colspan;
+                    } else {
+                        colIndex++;
+                    }
+                }
+            }
+
+            const firstRowContent = h2Text.length + h3Text.length + spans.length * 10;
+            const averageFirstRowWidth = Math.ceil(firstRowContent / numColumns);
+
+            for (let colIndex = 0; colIndex < numColumns; colIndex++) {
+                const firstRowCell = table.rows[0].cells[colIndex];
+                const firstRowCellWidth = firstRowCell ? firstRowCell.innerText.trim().length + 2 : 0;
+                columnWidths[colIndex] = Math.max(columnWidths[colIndex] || 0, averageFirstRowWidth, firstRowCellWidth);
+            }
+
+            columnWidths.forEach((width, index) => {
+                worksheet.getColumn(index + 1).width = width;
+            });
+
+            workbook.xlsx.writeBuffer().then(buffer => {
+                const blob = new Blob([buffer], { type: 'application/octet-stream' });
+                saveAs(blob, 'output.xlsx');
+            });
+        }
+
+        function isNumeric(value) {
+            return !isNaN(value) && !isNaN(parseFloat(value));
+        }
+
+        function rgbToHex(rgb) {
+            const rgbArray = rgb.match(/\d+/g);
+            return rgbArray ? rgbArray.slice(0, 3).map(num => parseInt(num).toString(16).padStart(2, '0')).join('').toUpperCase() : 'FFFFFF';
+        }
+
+        function convertTextAlign(textAlign) {
+            switch (textAlign) {
+                case 'left':
+                    return 'left';
+                case 'center':
+                    return 'center';
+                case 'right':
+                    return 'right';
+                case 'justify':
+                    return 'justify';
+                default:
+                    return 'left';
+            }
+        }
+
+        function convertVerticalAlign(verticalAlign) {
+            switch (verticalAlign) {
+                case 'top':
+                    return 'top';
+                case 'middle':
+                    return 'middle';
+                case 'bottom':
+                    return 'bottom';
+                default:
+                    return 'middle';
+            }
+        }
+
+        function getColoredSquare(bgColor) {
+            const hexColor = rgbToHex(bgColor);
+            const square = '■'; // Unicode square character
+            return { square: square, color: hexColor };
+        }
+
+
+    </script>
+</body>
+
+</html>
